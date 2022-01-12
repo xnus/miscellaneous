@@ -3,9 +3,9 @@
 # The code is used to generate a co-occurrence network of biological (mainly microbial) communities.
 # Author also provide a method to combine networks from sub-communities (e.g., communities presented by different treat levels, locations, replicates, etc.) to one.
 
-
-
+###########################################
 # First part, generate a co-occurrence network with a sample-taxon table.
+###########################################
 # With function cor.test, start from a dataframe of sample (row) and taxon (column) table, and generate a list of edges of the community.
 df2edge <- function(inputdf) 
 	{
@@ -37,7 +37,7 @@ df2edge <- function(inputdf)
 	results
 	}
 
-# 限定rho和p值来筛选df2edge得到的edge list
+# Set thresholds of rho and p values to filter you edgelist.
 edgefltr <- function(inputedgelst, inputp, inputrhoupper, inputrhobtm)
 	{
 	edgelstemp <- base::transform(inputedgelst, p.value = as.numeric(as.character(p.value)), rho = as.numeric(as.character(rho))) # 如果不加as.character，会变成莫名其妙的整数
@@ -46,7 +46,8 @@ edgefltr <- function(inputedgelst, inputp, inputrhoupper, inputrhobtm)
 	edgelstemp
 	}
 
-
+# Perhaps you prefer to save your sample-taxon table with phyloseq objectives.
+# Function dependencies: df2edge, edgefltr.
 ps2edgels <- function(inputps, inputp, inputrhoupper, inputrhobtm)
 	{
 	tempdf <- as.data.frame(as(otu_table(inputps),"matrix"))
@@ -55,3 +56,91 @@ ps2edgels <- function(inputps, inputp, inputrhoupper, inputrhobtm)
 	tempedgels <- edgefltr(tempedgels, inputp, inputrhoupper, inputrhobtm)
 	tempedgels
 	}
+
+# For example:
+# edgels.cor.myps.01 <- ps2edgels(myphyloseq, 0.01, 0.8, -0.8)
+
+# Then you may transform your data between the edgelist and igraph object and plot.
+
+
+
+
+###########################################
+# Second part, combine networks from sub-communities.
+###########################################
+# In this part, author managed to count how many times of an edge ouccrred in all sub-communities. For example, if there are six sampling locations, and taxon A behaved postive correlation to taxon B in all six communities, A-B correlation might be reasonably a stable relationship.
+# To achieve this goal, author firstly generate an entire list of all possible combinations, then count all co-occurrence pairs against the entire list and record, and finaly remove the edge from the list which occurred too few time to reach your threshold.
+
+# generate an entire list of all possible combinations
+mkalledgels <- function(inputps)
+{
+	tempdf <- as.data.frame(as(otu_table(inputps),"matrix"))
+	colnames(tempdf) <- as.character(tax_table(inputps)[,dim(tax_table(inputps))[2]]) #以后都应直接把tax加上去，省得以后麻烦
+	tempall_edgels <- matrix(nrow=0,ncol=8)
+	for (i in 1:(dim(tempdf)[2]-1))
+		{
+		for (j in (i+1):dim(tempdf)[2])
+			{
+			new.row<-c(colnames(tempdf)[i],colnames(tempdf)[j],0,0,0)
+			tempall_edgels<-rbind(tempall_edgels,new.row)		
+			}
+		print(paste(i, "out of", dim(tempdf)[2], sep = " "))
+		}
+	tempall_edgels <- as.data.frame(tempall_edgels)
+	colnames(tempall_edgels)<-c("ASV1","ASV2","rhoplus","rhominus","occurrenceplus","occurrenceminus","occurrence","total")
+	tempall_edgels[,c("rhoplus","rhominus","occurrenceplus","occurrenceminus","occurrence","total")] <- 0 # all_edgels的那三个0列是factor而不是numeric，所以要这里要注意转成0
+	tempall_edgels
+}
+
+# combine list of edgelist
+# In this step, sub-community edgelist were searched against the entire list. If a pair in sub-community edgelist is found in the entire list, 1 is added to the pair in entierlist.
+# The entire list would be searched against by sub-community edgelists one by one. When all sub-community edgelists finished search, you will know how many times of a certain pair occurred in all sub-communities from the final entire list.
+# This step could also be modified, to sum the rho values and to separate plus or minus rhos.
+sumedgels <- function(inputalledgels, inputedgels)
+	{
+	for (i in 1:nrow(inputedgels))
+		{
+		eltx1 <- as.vector(inputedgels[i,"ASV1"])
+		eltx2 <- as.vector(inputedgels[i,"ASV2"])
+		if (inputedgels[i,"rho"] >= 0) 
+			{
+			inputalledgels[inputalledgels$ASV1==eltx1&inputalledgels$ASV2==eltx2,"occurrenceplus"] <- inputalledgels[inputalledgels$ASV1==eltx1&inputalledgels$ASV2==eltx2,"occurrenceplus"] + 1
+			}
+		else
+			{
+			inputalledgels[inputalledgels$ASV1==eltx1&inputalledgels$ASV2==eltx2,"occurrenceminus"] <- inputalledgels[inputalledgels$ASV1==eltx1&inputalledgels$ASV2==eltx2,"occurrenceminus"] + 1
+			}
+		inputalledgels[inputalledgels$ASV1==eltx1&inputalledgels$ASV2==eltx2,"occurrence"] <- inputalledgels[inputalledgels$ASV1==eltx1&inputalledgels$ASV2==eltx2,"occurrence"] + 1
+		}
+	inputalledgels
+	}
+
+combedlsls <- function(inputalledgels, inputedlsls)
+	{
+	tempcombedlsls <- inputalledgels
+	for (i in 1:length(inputedlsls))
+		{
+		tempcombedlsls <- sumedgels(tempcombedlsls, inputedlsls[[i]])
+		print(paste("==============", i, "out of", length(inputedlsls), "==============", sep = " "))
+		}
+	tempcombedlsls <- tempcombedlsls[tempcombedlsls$occurrence!=0,]
+	tempcombedlsls
+	}
+
+# This function calculated relative abundance (RA) of taxa, which might be useful.
+ps2RAls <- function(inputps)
+	{
+	tempdf <- as.data.frame(as(otu_table(inputps),"matrix"))
+	colnames(tempdf) <- as.character(tax_table(inputps)[,dim(tax_table(inputps))[2]]) #以后都应直接把tax加上去，省得以后麻烦
+	tempsum <- sum(tempdf)
+	tempRA <- as.data.frame(colSums(tempdf)/tempsum)
+	tempRA
+	}
+
+# For example:
+# all_edgels.myps <- mkalledgels(myphyloseq) # make a list of all possible pairs.
+# edgelsls.cor.myps.01 <- list(edgels.cor.myps.01.rep1, edgels.cor.myps.01.rep2, edgels.cor.myps.01.rep3, ...., edgels.cor.myps.01.repN) # put all edgelists of sub-communities into one list, which makes an "edge list list"
+# combedlsls.cor.myps.01 <- combedlsls(all_edgels.myps,edgelsls.cor.myps.01) # combine, count how many times of a pair occured among all sub-communities.
+# combedlsls.cor.myps.01.5 <- combedlsls.cor.myps.01[combedlsls.cor.myps.01$occurrence>4,] # you set a threshold, e.g., a pair should occurred in 5 or more sub-communities.
+# plot
+
