@@ -2,6 +2,7 @@
 # 在代码的第二部分中，作者提供了将来自不同亚群落（如不同处理水平、地点、重复等）合并的方式。
 # The code is used to generate a co-occurrence network of biological (mainly microbial) communities.
 # Author also provide a method to combine networks from sub-communities (e.g., communities presented by different treat levels, locations, replicates, etc.) to one.
+# Citations: J. Fungi 2020, 6, 180, doi:10.3390/jof6030180; Front Microbiol 2021, 12, 778327, doi:10.3389/fmicb.2021.778327.
 
 ###########################################
 # First part, generate a co-occurrence network with a sample-taxon table.
