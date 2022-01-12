@@ -1,10 +1,12 @@
-# The code is used to generate 
+# 本代码可用来生成生物群落（主要是微生物群落）的共发生网络。
+# 在代码的第二部分中，作者提供了将来自不同亚群落（如不同处理水平、地点、重复等）合并的方式。
+# The code is used to generate a co-occurrence network of biological (mainly microbial) communities.
+# Author also provide a method to combine networks from sub-communities (e.g., communities presented by different treat levels, locations, replicates, etc.) to one.
 
 
 
-
-
-# 用cor.test计算网络的基本函数，得到一个edge的list
+# First part, generate a co-occurrence network with a sample-taxon table.
+# With function cor.test, start from a dataframe of sample (row) and taxon (column) table, and generate a list of edges of the community.
 df2edge <- function(inputdf) 
 	{
 	results<-matrix(nrow=0,ncol=6)
