@@ -1,0 +1,55 @@
+# The code is used to generate 
+
+
+
+
+
+# 用cor.test计算网络的基本函数，得到一个edge的list
+df2edge <- function(inputdf) 
+	{
+	results<-matrix(nrow=0,ncol=6)
+	for (i in 1:(dim(inputdf)[2]-1))
+		{
+		for (j in (i+1):dim(inputdf)[2])
+			{
+			species1.ab<-sum(inputdf[,i])
+			species2.ab<-sum(inputdf[,j])
+			if(species1.ab > 0 & species2.ab > 0)
+				{
+				test<-cor.test(inputdf[, i],inputdf[, j],method="spearman",na.action=na.rm)
+				rho<-as.numeric(test$estimate)
+				p.value<-as.numeric(test$p.value)
+				}		
+			if(species1.ab == 0 | species2.ab == 0)
+				{
+				rho<-0
+				p.value<-1
+				}
+			new.row<-c(colnames(inputdf)[i],colnames(inputdf)[j],rho,p.value,species1.ab,species2.ab)
+			results<-rbind(results,new.row)		
+			}
+			print(paste(i, "out of", dim(inputdf)[2], sep = " "))
+		}
+	results <- as.data.frame(results)
+	colnames(results)<-c("ASV1","ASV2","rho","p.value","ab1","ab2")
+	results
+	}
+
+# 限定rho和p值来筛选df2edge得到的edge list
+edgefltr <- function(inputedgelst, inputp, inputrhoupper, inputrhobtm)
+	{
+	edgelstemp <- base::transform(inputedgelst, p.value = as.numeric(as.character(p.value)), rho = as.numeric(as.character(rho))) # 如果不加as.character，会变成莫名其妙的整数
+	edgelstemp <- edgelstemp[edgelstemp[,"p.value"] < inputp,]
+	edgelstemp <- edgelstemp[edgelstemp[,"rho"] < inputrhobtm|edgelstemp[,"rho"] > inputrhoupper,]
+	edgelstemp
+	}
+
+
+ps2edgels <- function(inputps, inputp, inputrhoupper, inputrhobtm)
+	{
+	tempdf <- as.data.frame(as(otu_table(inputps),"matrix"))
+	colnames(tempdf) <- as.character(tax_table(inputps)[,dim(tax_table(inputps))[2]]) #以后都应直接把tax加上去，省得以后麻烦
+	tempedgels <- df2edge(tempdf)
+	tempedgels <- edgefltr(tempedgels, inputp, inputrhoupper, inputrhobtm)
+	tempedgels
+	}
